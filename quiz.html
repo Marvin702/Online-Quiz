@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Multiplayer Quiz</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  display:flex; justify-content:center; align-items:center;
+  height:100vh; margin:0; color:white;
+}
+.container {
+  background:#1e1e1e; width:500px; padding:30px; border-radius:20px;
+  box-shadow:0 0 40px rgba(0,0,0,0.6); text-align:center;
+}
+input, select {padding:10px; border-radius:8px; border:none; margin:5px 0;}
+button {padding:12px 20px; border:none; border-radius:10px; cursor:pointer; margin-top:10px; font-weight:bold;}
+button:hover {opacity:0.9;}
+.answer {display:block; width:100%; padding:10px; margin-top:10px; border-radius:10px; font-weight:bold;}
+.a1 {background:#3498db;} .a2 {background:#2ecc71;} .a3 {background:#e74c3c;} .a4 {background:#f1c40f; color:black;}
+.timer {font-size:24px; margin-bottom:10px;}
+.scoreboard {margin-top:20px; text-align:left;}
+.player {border-bottom:1px solid #444; padding:6px;}
+.podium{font-size:20px; margin:8px;}
+.gold{color:gold} .silver{color:silver} .bronze{color:#cd7f32}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div id="setup">
+<input id="playerName" placeholder="Spielername">
+<select id="category">
+<option value="all">Alle Kategorien</option>
+<option value="geografie">Geografie</option>
+<option value="wissenschaft">Wissenschaft</option>
+<option value="filme">Filme</option>
+<option value="geschichte">Geschichte</option>
+<option value="sport">Sport</option>
+</select>
+<button onclick="addPlayer()">Spieler hinzufügen</button>
+<div id="players"></div>
+<button onclick="startGame()">Start</button>
+</div>
+
+<div id="game" style="display:none">
+<div class="timer" id="timer"></div>
+<div id="turn"></div>
+<h3 id="question"></h3>
+<div id="answers"></div>
+<div class="scoreboard" id="scoreboard"></div>
+</div>
+
+<div id="result" style="display:none">
+<h2>🏆 Gewinner</h2>
+<div id="podium"></div>
+<button onclick="location.reload()">Neues Spiel</button>
+</div>
+
+</div>
+
+<script>
+// Spieler & Spiel
+const players=[], rounds=6;
+let currentPlayer=0, round=0, timeLeft, timer, currentQuestion;
+
+// Fragenbank mit vielen Kategorien
+const questions=[
+{q:"Was ist die Hauptstadt von Deutschland?",a:["Berlin","München","Hamburg","Frankfurt"],c:0,cat:"geografie"},
+{q:"Welcher Planet ist der Sonne am nächsten?",a:["Venus","Merkur","Mars","Erde"],c:1,cat:"wissenschaft"},
+{q:"Wer spielte Jack in Titanic?",a:["Leonardo DiCaprio","Brad Pitt","Tom Hanks","Johnny Depp"],c:0,cat:"filme"},
+{q:"In welchem Jahr begann der Zweite Weltkrieg?",a:["1939","1914","1945","1929"],c:0,cat:"geschichte"},
+{q:"Wie viele Spieler hat eine Fußballmannschaft auf dem Feld?",a:["9","10","11","12"],c:2,cat:"sport"},
+{q:"Welcher Kontinent hat die meisten Länder?",a:["Afrika","Asien","Europa","Südamerika"],c:0,cat:"geografie"},
+{q:"Woraus besteht Wasser?",a:["H2","O2","H2O","CO2"],c:2,cat:"wissenschaft"},
+{q:"Wer ist der Regisseur von Jurassic Park?",a:["Steven Spielberg","James Cameron","Peter Jackson","Christopher Nolan"],c:0,cat:"filme"},
+{q:"Wer war der erste Präsident der USA?",a:["George Washington","Abraham Lincoln","Thomas Jefferson","John Adams"],c:0,cat:"geschichte"},
+{q:"In welchem Sport ist ein 'Slam Dunk' bekannt?",a:["Tennis","Basketball","Fußball","Golf"],c:1,cat:"sport"},
+{q:"Welcher Fluss fließt durch Paris?",a:["Themse","Rhein","Seine","Donau"],c:2,cat:"geografie"},
+{q:"Was ist die kleinste Einheit des Lebens?",a:["Atom","Zelle","Molekül","Organ"],c:1,cat:"wissenschaft"},
+{q:"Welcher Schauspieler spielte in 'Iron Man'?",a:["Chris Hemsworth","Chris Evans","Robert Downey Jr.","Mark Ruffalo"],c:2,cat:"filme"},
+{q:"Wann fiel die Berliner Mauer?",a:["1989","1991","1985","1990"],c:0,cat:"geschichte"},
+{q:"Wie viele Grand Slam Turniere gibt es im Tennis?",a:["2","3","4","5"],c:2,cat:"sport"},
+{q:"Welcher Berg ist der höchste der Welt?",a:["K2","Everest","Kangchenjunga","Lhotse"],c:1,cat:"geografie"},
+{q:"Wie viele Planeten hat unser Sonnensystem?",a:["7","8","9","10"],c:1,cat:"wissenschaft"},
+{q:"Wer spielte Harry Potter?",a:["Daniel Radcliffe","Elijah Wood","Rupert Grint","Tom Felton"],c:0,cat:"filme"},
+{q:"Wer entdeckte Amerika?",a:["Christopher Columbus","Vasco da Gama","Ferdinand Magellan","James Cook"],c:0,cat:"geschichte"},
+{q:"Wie lange dauert ein Handballspiel?",a:["30min","45min","60min","90min"],c:2,cat:"sport"}
+];
+
+// Spieler hinzufügen
+function addPlayer(){
+  const name=document.getElementById("playerName").value;
+  const cat=document.getElementById("category").value;
+  if(!name) return;
+  players.push({name:name,score:0,category:cat});
+  document.getElementById("playerName").value="";
+  updatePlayers();
+}
+function updatePlayers(){
+  const div=document.getElementById("players"); div.innerHTML="";
+  players.forEach(p=>{
+    const d=document.createElement("div");
+    d.textContent=p.name+" ("+p.category+")";
+    div.appendChild(d);
+  });
+}
+function startGame(){ 
+  if(players.length===0) return;
+  document.getElementById("setup").style.display="none"; 
+  document.getElementById("game").style.display="block"; 
+  nextQuestion();
+}
+function startTimer(){ 
+  timeLeft=10; document.getElementById("timer").textContent="⏱ "+timeLeft; 
+  timer=setInterval(()=>{ 
+    timeLeft--; 
+    document.getElementById("timer").textContent="⏱ "+timeLeft; 
+    if(timeLeft<=0){ clearInterval(timer); nextTurn(); } 
+  },1000);
+}
+function nextQuestion(){ 
+  if(round>=rounds){ showResults(); return; }
+  const p=players[currentPlayer]; 
+  document.getElementById("turn").textContent=p.name+" ist dran";
+  // Frage nach Kategorie filtern
+  const available=questions.filter(q=>p.category==="all"||q.cat===p.category);
+  currentQuestion=available[Math.floor(Math.random()*available.length)];
+  document.getElementById("question").textContent=currentQuestion.q;
+  const ans=document.getElementById("answers"); ans.innerHTML="";
+  currentQuestion.a.forEach((text,i)=>{ 
+    const btn=document.createElement("button"); 
+    btn.className="answer a"+(i+1); 
+    btn.textContent=text; 
+    btn.onclick=()=>answer(i); 
+    ans.appendChild(btn); 
+  });
+  updateScoreboard(); 
+  startTimer();
+}
+function answer(i){ 
+  clearInterval(timer); 
+  if(i===currentQuestion.c) players[currentPlayer].score++; 
+  nextTurn(); 
+}
+function nextTurn(){ 
+  currentPlayer++; 
+  if(currentPlayer>=players.length){currentPlayer=0; round++;} 
+  nextQuestion(); 
+}
+function updateScoreboard(){ 
+  const board=document.getElementById("scoreboard"); board.innerHTML=""; 
+  players.forEach(p=>{ 
+    const div=document.createElement("div"); 
+    div.className="player"; 
+    div.textContent=p.name+" : "+p.score+" Punkte"; 
+    board.appendChild(div); 
+  }); 
+}
+function showResults(){ 
+  document.getElementById("game").style.display="none"; 
+  document.getElementById("result").style.display="block"; 
+  players.sort((a,b)=>b.score-a.score); 
+  const podium=document.getElementById("podium"); 
+  if(players[0]) podium.innerHTML+="<div class='podium gold'>🥇 "+players[0].name+" ("+players[0].score+")</div>"; 
+  if(players[1]) podium.innerHTML+="<div class='podium silver'>🥈 "+players[1].name+" ("+players[1].score+")</div>"; 
+  if(players[2]) podium.innerHTML+="<div class='podium bronze'>🥉 "+players[2].name+" ("+players[2].score+")</div>"; 
+  for(let i=3;i<players.length;i++){ podium.innerHTML+="<div>"+players[i].name+" ("+players[i].score+")</div>"; } 
+}
+</script>
+</body>
+</html>
